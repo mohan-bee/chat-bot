@@ -1,5 +1,6 @@
 /**
  * server.js
+ * Install: npm install express axios dotenv cors
  * Run: node server.js
  */
 const express = require("express");
@@ -30,96 +31,102 @@ const FIELD_DEFINITIONS = [
 
 // ---------------- AI LOGIC ----------------
 
-const generateSystemPrompt = (existingData) => {
+const generateSystemPrompt = (existingData, lastAiMessage) => {
   return `
     You are "Vishy", a warm, expert Senior Admissions Counselor.
     
-    GOAL: Conduct a natural conversation to collect information.
+    GOAL: Conduct a natural conversation to collect information for the "REQUIRED FIELDS".
     
-    CURRENT CAPTURED DATA (Context):
+    LAST QUESTION YOU ASKED: "${lastAiMessage || 'None (Conversation Start)'}"
+    
+    CURRENT CAPTURED DATA:
     ${JSON.stringify(existingData, null, 2)}
     
-    REQUIRED FIELDS:
+    REQUIRED FIELDS DEFINITIONS:
     ${JSON.stringify(FIELD_DEFINITIONS, null, 2)}
     
     INSTRUCTIONS:
-    1. **Analyze** the user's input against the "CURRENT CAPTURED DATA".
-    2. **Extract** any new information provided in the "USER SAYS" section and map it to the fields. 
-    3. **Update Logic**: 
-       - If the user says "I'm a student", set 'form_filler_type' to 'Student'.
-       - If 'form_filler_type' is 'Student', mark 'parent_name' as 'N/A' automatically.
-    4. **Next Step**: Ask for the *next* missing logical piece of information.
+    1. **Analyze** the "USER SAYS" input.
+    2. **Extract** new information. 
+       - If the user implies something (e.g., "I'm in 12th" -> current_grade: "Grade 12"), map it.
+       - If 'form_filler_type' is 'Student', you can implicitly set 'parent_name' to 'N/A'.
+    3. **Next Step**: Check which fields are still empty/null in "CURRENT CAPTURED DATA". Ask for the next logical missing field.
+    4. **Tone**: Short, professional, and conversational. Don't be robotic.
     
-    CRITICAL OUTPUT RULE:
-    Return JSON ONLY.
+    OUTPUT FORMAT (JSON ONLY):
     {
-      "ai_message": "string (The conversational response asking the next question)",
-      "updated_data": { "field_name": "extracted_value" }, 
-      "is_complete": boolean
+      "ai_message": "your response here",
+      "newly_extracted_data": { "field_name": "value" }, 
+      "completed": boolean
     }
     
-    NOTE: "updated_data" should only contain NEW or CHANGED fields from this specific turn.
+    - "newly_extracted_data": Only include fields found in THIS specific turn. 
+    - "completed": True only if all necessary fields are filled.
   `;
 };
 
 app.post("/chat", async (req, res) => {
   try {
     // 1. Get Payload
-    // existing_data comes from the Client (Typebot/Frontend) state
-    const { user_message, existing_data } = req.body;
-    const currentVariables = existing_data || {};
+    // Expected structure: { user_message: "", ai_message: "", existing_data: { ... } }
+    const { user_message, ai_message, existing_data } = req.body;
 
-    console.log("--- INCOMING REQUEST ---");
-    console.log("User Says:", user_message);
-    console.log("Current Context:", JSON.stringify(currentVariables));
+    // Ensure existing_data is an object, even if empty
+    const currentDataState = existing_data || {};
+
+    console.log("--- INCOMING ---");
+    console.log("User:", user_message);
+    console.log("Previous AI Context:", ai_message);
 
     // 2. Construct Prompt
-    const systemPrompt = generateSystemPrompt(currentVariables);
+    const systemPrompt = generateSystemPrompt(currentDataState, ai_message);
 
     // 3. Call Gemini
     const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         contents: [
-          { 
-            role: "user", 
-            parts: [{ text: systemPrompt + `\n\nUSER SAYS: "${user_message}"` }] 
-          }
+          { role: "user", parts: [{ text: systemPrompt + `\n\nUSER SAYS: "${user_message}"` }] }
         ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        generationConfig: { responseMimeType: "application/json" }
       }
     );
 
     const rawText = response.data.candidates[0].content.parts[0].text;
-
-    // 4. Parse JSON
+    
+    // 4. Parse AI Response
     let aiResponse;
     try {
       aiResponse = JSON.parse(rawText);
     } catch (e) {
-      aiResponse = { 
-        ai_message: "I didn't quite catch that. Could you repeat?", 
-        updated_data: {}, 
-        is_complete: false 
-      };
+      console.error("JSON Parse Error", e);
+      aiResponse = { ai_message: "Could you repeat that?", newly_extracted_data: {}, completed: false };
     }
 
-    // 5. Console Log for Debugging (The "Loopback" check)
-    // This shows you what the NEW state looks like by merging locally for the log
-    const mergedState = { ...currentVariables, ...aiResponse.updated_data };
-    console.log("--- AI RESPONSE ---");
-    console.log("AI Message:", aiResponse.ai_message);
-    console.log("Extracted Data:", aiResponse.updated_data);
-    console.log(">> FULL CONTEXT STATE:", JSON.stringify(mergedState)); 
-    console.log("---------------------\n");
+    // ---------------- MERGING LOGIC ----------------
+    // We take the OLD data and overlay the NEW data from AI
+    const fullUpdatedData = {
+        ...currentDataState,
+        ...aiResponse.newly_extracted_data
+    };
 
-    res.json(aiResponse);
+    // 5. Construct Final Response
+    const finalResponse = {
+        ai_message: aiResponse.ai_message,
+        existing_data: fullUpdatedData, // Returns the FULL object
+        completed: aiResponse.completed
+    };
+
+    console.log("--- OUTGOING ---");
+    console.log("AI Message:", finalResponse.ai_message);
+    console.log("Full Data State:", JSON.stringify(finalResponse.existing_data));
+    console.log("----------------\n");
+
+    res.json(finalResponse);
 
   } catch (error) {
     console.error("Server Error:", error.response?.data || error.message);
-    res.status(500).json({ ai_message: "Connection error." });
+    res.status(500).json({ ai_message: "Connection error.", existing_data: req.body.existing_data, completed: false });
   }
 });
 
