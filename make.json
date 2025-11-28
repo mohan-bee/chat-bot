@@ -1,0 +1,116 @@
+{
+    "name": "AI Counselor - Fixed & Complete",
+    "flow": [
+        {
+            "id": 1,
+            "module": "gateway:CustomWebHook",
+            "version": 1,
+            "parameters": {},
+            "mapper": {},
+            "metadata": {
+                "designer": {
+                    "x": 0,
+                    "y": 0
+                },
+                "restore": {}
+            }
+        },
+        {
+            "id": 2,
+            "module": "http:ActionSendData",
+            "version": 3,
+            "parameters": {
+                "handleErrors": true
+            },
+            "mapper": {
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=YOUR_KEY_HERE",
+                "method": "post",
+                "headers": [
+                    {
+                        "name": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "bodyType": "raw",
+                "contentType": "application/json",
+                "data": "{\n  \"contents\": [\n    {\n      \"role\": \"user\",\n      \"parts\": [\n        {\n          \"text\": \"You are Vishy’s Premium Admissions Counselor AI. \\n\\nYour Goal: Extract these fields: {{1.fields}} \\n\\nCurrent Data: {{1.existing_data}} \\n\\nUser Message: \\\"{{1.user_message}}\\\"\\n\\nRULES:\\n1. Compare 'Current Data' against 'Goal Fields'.\\n2. Identify the FIRST missing field.\\n3. Ask the user for that missing info politely.\\n4. Return ONLY valid JSON: { \\\"ai_message\\\": \\\"...\\\", \\\"extracted_data\\\": { ...updated data... }, \\\"is_complete\\\": boolean }.\\n5. If all fields are present, set is_complete to true.\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+                "parseResponse": true
+            },
+            "metadata": {
+                "designer": {
+                    "x": 300,
+                    "y": 0
+                },
+                "restore": {
+                    "expect": {
+                        "method": {
+                            "label": "POST"
+                        },
+                        "bodyType": {
+                            "label": "Raw"
+                        },
+                        "contentType": {
+                            "label": "JSON (application/json)"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": 3,
+            "module": "regexp:Parser",
+            "version": 1,
+            "parameters": {
+                "pattern": "\\{[\\s\\S]*\\}",
+                "global": false,
+                "sensitive": true,
+                "multiline": false,
+                "singleline": false
+            },
+            "mapper": {
+                "text": "{{2.data.candidates[1].content.parts[1].text}}"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 600,
+                    "y": 0
+                },
+                "restore": {}
+            }
+        },
+        {
+            "id": 4,
+            "module": "json:ParseJSON",
+            "version": 1,
+            "parameters": {},
+            "mapper": {
+                "json": "{{3.match}}"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 900,
+                    "y": 0
+                },
+                "restore": {}
+            }
+        },
+        {
+            "id": 5,
+            "module": "gateway:WebhookResponse",
+            "version": 1,
+            "parameters": {
+                "status": 200
+            },
+            "mapper": {
+                "body": "{\n  \"output\": {\n    \"ai_message\": \"{{4.ai_message}}\",\n    \"extracted_data\": {{4.extracted_data}},\n    \"is_complete\": {{4.is_complete}}\n  }\n}"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 1200,
+                    "y": 0
+                },
+                "restore": {}
+            }
+        }
+    ]
+}

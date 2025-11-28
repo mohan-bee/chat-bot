@@ -1,0 +1,276 @@
+{
+  "version": "6.1",
+  "id": "cmigwmz6b0001l5043tm1lna4",
+  "name": "Admissions Counselor (Fixed)",
+  "events": [
+    {
+      "id": "eb2ivm61468be1djci25sduh",
+      "outgoingEdgeId": "t78rngdnj2tabrgmjmhyhf29",
+      "graphCoordinates": { "x": 0, "y": -0.12 },
+      "type": "start"
+    }
+  ],
+  "groups": [
+    {
+      "id": "s3bekgml010du42o174rnn5a",
+      "graphCoordinates": { "x": 386.37, "y": -18.03 },
+      "title": "1. Initialize",
+      "blocks": [
+        {
+          "id": "lknjrcz7x4jcg7s5zv1j96dt",
+          "type": "Set variable",
+          "options": {
+            "variableId": "n836evh92236fshe1952br43",
+            "type": "Custom",
+            "isCode": true,
+            "expressionToEvaluate": "[{\"name\": \"name\", \"datatype\": \"string\", \"description\": \"Full Name\"}, {\"name\": \"gpa\", \"datatype\": \"number\", \"description\": \"GPA\"}, {\"name\": \"major\", \"datatype\": \"string\", \"description\": \"Intended Major\"}]"
+          }
+        },
+        {
+          "id": "n9fi3xwgfrynru0wczxt86jj",
+          "type": "Set variable",
+          "options": {
+            "variableId": "s9n758i2qw4ei9ec74eiywtz",
+            "isCode": false,
+            "expressionToEvaluate": "You are 'Vishy’s Premium Admissions Counselor AI'. Your mission: Extract key student details. Ask ONLY for the first missing field. Responses must be short, warm, and elegant. STRICT RULES: Return valid JSON only: { \"ai_message\": \"string\", \"extracted_data\": {}, \"is_complete\": boolean }."
+          }
+        },
+        {
+          "id": "auerievnpv93ns3nukqbifce",
+          "type": "Set variable",
+          "options": {
+            "variableId": "y5djobm1zx8abxzfum75p2tl",
+            "type": "Custom",
+            "isCode": true,
+            "expressionToEvaluate": "{}"
+          }
+        },
+        {
+          "id": "mn3d1r1lwocet88phymohg8b",
+          "type": "Set variable",
+          "options": {
+            "variableId": "c9hn43ejjxhqzctoq94xu15w",
+            "expressionToEvaluate": "Hello! I am Vishy. How can I help you with your admissions today?"
+          },
+          "outgoingEdgeId": "x3exzvip4peffcnq4zq3wou3"
+        }
+      ]
+    },
+    {
+      "id": "ta1d7wn673a1eirzio1xb2lg",
+      "graphCoordinates": { "x": 40, "y": 600 },
+      "title": "2. Bot Message",
+      "blocks": [
+        {
+          "id": "uliae83eptq95aj1hcgi5obx",
+          "type": "text",
+          "content": {
+            "richText": [{ "type": "p", "children": [{ "text": "{{AI_Message}}" }] }]
+          },
+          "outgoingEdgeId": "p9q8vyp7ayzlk6v4qocs7r4j"
+        }
+      ]
+    },
+    {
+      "id": "r5hvp9mvhpsgwdmvrhbq6zyq",
+      "graphCoordinates": { "x": 40, "y": 750 },
+      "title": "3. User Input",
+      "blocks": [
+        {
+          "id": "iv358q9rbkuxdap2zizzmcwv",
+          "type": "text input",
+          "options": {
+            "labels": { "placeholder": "Type here..." },
+            "variableId": "cpk7lqxgipq13tvxj1cgc00b"
+          },
+          "outgoingEdgeId": "xmk1f8fv7yzv4cumhd9p1j91"
+        }
+      ]
+    },
+    {
+      "id": "l80b14fzchd0so0gp8rag8r1",
+      "graphCoordinates": { "x": 400, "y": 600 },
+      "title": "4. Pre-Calculation",
+      "blocks": [
+        {
+          "id": "u9b1tbrpaskms8l4swkht6f2",
+          "type": "Set variable",
+          "options": {
+            "variableId": "qnm7zfcrv8sdsch3j870x3fo",
+            "type": "Custom",
+            "isCode": true,
+            "expressionToEvaluate": "// 1. Get variables\nconst fields = {{FieldsSchema}};\nconst existing_data = {{CurrentData}} || {};\nconst sysPrompt = `{{SystemPrompt}}`;\nconst userMsg = `{{UserMessage}}`;\n\n// 2. Find missing field\nconst missingFields = fields\n  .filter(f => !existing_data || !existing_data[f.name])\n  .map(f => f.name);\n\nconst firstMissing = missingFields[0] || null;\n\n// 3. Create Prompt\nreturn `\n${sysPrompt}\n\nFIELDS: ${fields.map(f => f.name).join(', ')}\nCURRENT DATA: ${JSON.stringify(existing_data)}\nMISSING: ${missingFields.join(', ')}\nASK ABOUT: ${firstMissing}\nUSER SAYS: \"${userMsg}\"\n\nRETURN JSON ONLY.\n`;"
+          },
+          "outgoingEdgeId": "qg47ev5jibgjyib6yjvyqsnv"
+        }
+      ]
+    },
+    {
+      "id": "ghy2dz3lhgq2o8bg40q03k0z",
+      "graphCoordinates": { "x": 800, "y": 600 },
+      "title": "5. API Call Placeholder",
+      "blocks": [
+        {
+          "id": "h1az1qp9pa5euoztwn62eu1r",
+          "type": "Set variable",
+          "outgoingEdgeId": "asmvy5f7blbvz5izs1iy7mc7"
+        }
+      ]
+    },
+    {
+      "id": "rzdj85fix1ztjn0cgsv8zdee",
+      "graphCoordinates": { "x": 800, "y": 700 },
+      "title": "6. Webhook",
+      "blocks": [
+        {
+          "id": "pbx3mo5x8kilro4fjr2w5ejk",
+          "type": "Webhook",
+          "options": {
+            "webhook": {
+              "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+              "method": "POST",
+              "headers": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"contents\": [{\n    \"role\": \"user\",\n    \"parts\": [{ \"text\": \"{{GeminiPrompt}}\" }]\n  }],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n}"
+            },
+            "isCustomBody": true,
+            "responseVariableMapping": [
+              {
+                "id": "w861tiqjnw89mltri9sgpwag",
+                "bodyPath": "data.candidates[0].content.parts[0].text",
+                "variableId": "sdopx1vvs4wb1bkm474j31kq"
+              }
+            ]
+          },
+          "outgoingEdgeId": "lh07ingi1sf8theg3yuorn1q"
+        }
+      ]
+    },
+    {
+      "id": "du5qeuvr1ivokajchxxonte1",
+      "graphCoordinates": { "x": 1200, "y": 500 },
+      "title": "7a. Extract Data",
+      "blocks": [
+        {
+          "id": "mxrm52w4vtv2q6rknsofu9dk",
+          "type": "Set variable",
+          "options": {
+            "variableId": "y5djobm1zx8abxzfum75p2tl",
+            "type": "Custom",
+            "isCode": true,
+            "expressionToEvaluate": "try {\n  let raw = {{API_Response}};\n  if(raw.includes(\"```json\")) raw = raw.replace(/```json/g, \"\").replace(/```/g, \"\");\n  const json = JSON.parse(raw);\n  const current = {{CurrentData}} || {};\n  return JSON.stringify({ ...current, ...json.extracted_data });\n} catch(e) { return {{CurrentData}}; }"
+          },
+          "outgoingEdgeId": "edge-extract-msg"
+        }
+      ]
+    },
+    {
+      "id": "group-extract-msg",
+      "graphCoordinates": { "x": 1200, "y": 700 },
+      "title": "7b. Extract Message",
+      "blocks": [
+        {
+          "id": "block-extract-msg",
+          "type": "Set variable",
+          "options": {
+            "variableId": "c9hn43ejjxhqzctoq94xu15w",
+            "type": "Custom",
+            "isCode": true,
+            "expressionToEvaluate": "try {\n  let raw = {{API_Response}};\n  if(raw.includes(\"```json\")) raw = raw.replace(/```json/g, \"\").replace(/```/g, \"\");\n  return JSON.parse(raw).ai_message;\n} catch(e) { return \"I didn't quite get that. Could you repeat?\"; }"
+          },
+          "outgoingEdgeId": "edge-extract-status"
+        }
+      ]
+    },
+    {
+      "id": "group-extract-status",
+      "graphCoordinates": { "x": 1200, "y": 900 },
+      "title": "7c. Extract Status",
+      "blocks": [
+        {
+          "id": "block-extract-status",
+          "type": "Set variable",
+          "options": {
+            "variableId": "fr8kii6t9dz1vthimnxlp1m3",
+            "type": "Custom",
+            "isCode": true,
+            "expressionToEvaluate": "try {\n  let raw = {{API_Response}};\n  if(raw.includes(\"```json\")) raw = raw.replace(/```json/g, \"\").replace(/```/g, \"\");\n  return JSON.parse(raw).is_complete;\n} catch(e) { return false; }"
+          },
+          "outgoingEdgeId": "edge-decision"
+        }
+      ]
+    },
+    {
+      "id": "group-decision",
+      "graphCoordinates": { "x": 1600, "y": 700 },
+      "title": "8. Decision",
+      "blocks": [
+        {
+          "id": "block-decision",
+          "type": "Condition",
+          "options": {
+            "conditions": [
+              {
+                "variableId": "fr8kii6t9dz1vthimnxlp1m3",
+                "operator": "Equal to",
+                "value": "true"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "group-end",
+      "graphCoordinates": { "x": 1900, "y": 700 },
+      "title": "9. End",
+      "blocks": [
+        {
+          "id": "block-end",
+          "type": "text",
+          "content": {
+            "richText": [{ "type": "p", "children": [{ "text": "Thank you! I have all your details." }] }]
+          }
+        }
+      ]
+    }
+  ],
+  "edges": [
+    { "id": "t78rngdnj2tabrgmjmhyhf29", "from": { "eventId": "eb2ivm61468be1djci25sduh" }, "to": { "groupId": "s3bekgml010du42o174rnn5a" } },
+    { "id": "x3exzvip4peffcnq4zq3wou3", "from": { "blockId": "mn3d1r1lwocet88phymohg8b" }, "to": { "groupId": "ta1d7wn673a1eirzio1xb2lg" } },
+    { "id": "p9q8vyp7ayzlk6v4qocs7r4j", "from": { "blockId": "uliae83eptq95aj1hcgi5obx" }, "to": { "groupId": "r5hvp9mvhpsgwdmvrhbq6zyq" } },
+    { "id": "xmk1f8fv7yzv4cumhd9p1j91", "from": { "blockId": "iv358q9rbkuxdap2zizzmcwv" }, "to": { "groupId": "l80b14fzchd0so0gp8rag8r1" } },
+    { "id": "qg47ev5jibgjyib6yjvyqsnv", "from": { "blockId": "u9b1tbrpaskms8l4swkht6f2" }, "to": { "groupId": "ghy2dz3lhgq2o8bg40q03k0z" } },
+    { "id": "asmvy5f7blbvz5izs1iy7mc7", "from": { "blockId": "h1az1qp9pa5euoztwn62eu1r" }, "to": { "groupId": "rzdj85fix1ztjn0cgsv8zdee" } },
+    { "id": "lh07ingi1sf8theg3yuorn1q", "from": { "blockId": "pbx3mo5x8kilro4fjr2w5ejk" }, "to": { "groupId": "du5qeuvr1ivokajchxxonte1" } },
+    { "id": "edge-extract-msg", "from": { "blockId": "mxrm52w4vtv2q6rknsofu9dk" }, "to": { "groupId": "group-extract-msg" } },
+    { "id": "edge-extract-status", "from": { "blockId": "block-extract-msg" }, "to": { "groupId": "group-extract-status" } },
+    { "id": "edge-decision", "from": { "blockId": "block-extract-status" }, "to": { "groupId": "group-decision" } },
+    { "id": "edge-finish", "from": { "blockId": "block-decision", "path": "true" }, "to": { "groupId": "group-end" } },
+    { "id": "edge-loop", "from": { "blockId": "block-decision", "path": "false" }, "to": { "groupId": "ta1d7wn673a1eirzio1xb2lg" } }
+  ],
+  "variables": [
+    { "id": "fr8kii6t9dz1vthimnxlp1m3", "name": "IsComplete", "isSessionVariable": true },
+    { "id": "c9hn43ejjxhqzctoq94xu15w", "name": "AI_Message", "isSessionVariable": true },
+    { "id": "sdopx1vvs4wb1bkm474j31kq", "name": "API_Response", "isSessionVariable": true },
+    { "id": "qnm7zfcrv8sdsch3j870x3fo", "name": "GeminiPrompt", "isSessionVariable": true },
+    { "id": "cpk7lqxgipq13tvxj1cgc00b", "name": "UserMessage", "isSessionVariable": false },
+    { "id": "y5djobm1zx8abxzfum75p2tl", "name": "CurrentData", "isSessionVariable": true },
+    { "id": "n836evh92236fshe1952br43", "name": "FieldsSchema", "isSessionVariable": true },
+    { "id": "s9n758i2qw4ei9ec74eiywtz", "name": "SystemPrompt", "isSessionVariable": true }
+  ],
+  "theme": {
+    "general": {
+      "font": "Inter",
+      "background": { "type": "Color", "content": "#ffffff" }
+    },
+    "chat": {
+      "hostBubbles": { "backgroundColor": "#F7F8FF", "color": "#303235" },
+      "guestBubbles": { "backgroundColor": "#FF8C00", "color": "#FFFFFF"     }
+    }
+  },
+  "settings": {
+    "general": { "isBrandingEnabled": true },
+    "typingEmulation": { "enabled": true, "speed": 300 },
+    "metadata": { "title": "Admissions Bot", "description": "AI Counselor" }
+  }
+}
