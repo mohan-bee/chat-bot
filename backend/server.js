@@ -1,3 +1,7 @@
+/**
+ * server.js
+ * Install dependencies: npm install express axios dotenv cors
+ */
 const express = require("express");
 const axios = require("axios");
 const dotenv = require("dotenv");
@@ -9,114 +13,107 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// -------------- STRONG SYSTEM PROMPT -----------------
-const SYSTEM_PROMPT = `
-You are “Vishy’s Premium Admissions Counselor AI”.
+// ---------------- CONFIGURATION -----------------
 
-Your personality:
-- Warm, supportive, expert counselor
-- Conversational, human-like, not robotic
-- Friendly, reassuring, and empathetic
-- Never interrogates the user; always guides naturally
+// 1. Define the variables you need to capture (The "Goal" State)
+// The 'required' logic can be dynamic in the prompt, but this is the master list.
+const FIELD_DEFINITIONS = [
+  { name: "form_filler_type", type: "string", description: "Who is filling the form? Options: 'Parent', 'Student'" },
+  { name: "student_name", type: "string", description: "Full name of the student." },
+  { name: "parent_name", type: "string", description: "Full name of the parent (Only if form_filler_type is Parent)." },
+  { name: "current_grade", type: "string", description: "Current academic grade (e.g., Grade 9, Grade 12, Gap Year)." },
+  { name: "phone_number", type: "string", description: "Contact number." },
+  { name: "parent_email", type: "string", description: "Email address." },
+  { name: "location", type: "string", description: "City or place of residence." },
+  { name: "curriculum_type", type: "string", description: "Current curriculum (e.g., CBSE, ICSE, IB, State Board)." },
+  { name: "school_name", type: "string", description: "Name of the current school." },
+  { name: "target_geographies", type: "string", description: "Preferred countries for study (e.g., USA, UK, Canada)." },
+  { name: "scholarship_requirement", type: "string", description: "Scholarship needs. Options: 'Full', 'Partial', 'None'." }
+];
 
-Your mission:
-- Guide the conversation as a friendly senior admissions counselor.
-- Extract key student details based on fields provided by the developer.
-- Use existing_data to avoid repeating questions.
-- Ask ONLY for the **first missing field**.
-- Never ask for already filled fields.
-- Responses must be short, warm, and elegant.
+// ---------------- AI LOGIC ----------------
 
-STRICT RULES:
-1. Always analyze "fields" and "existing_data".
-2. Identify missing fields IN ORDER.
-3. Ask ONLY about the first missing one.
-4. If user provides new info, extract and update data.
-5. Do not modify previous extracted fields unless user corrects them.
-6. When all fields are filled, set "is_complete": true and stop asking questions.
-7. Your ENTIRE RESPONSE **MUST BE VALID JSON ONLY**:
-{
-  "ai_message": "string",
-  "extracted_data": {},
-  "is_complete": false
-}
-8. NO markdown. NO backticks. NO explanations. NO extra text before or after JSON.
-`;
+const generateSystemPrompt = (existingData) => {
+  return `
+    You are "Vishy", a warm, expert Senior Admissions Counselor at Beacon House.
+    
+    GOAL: Conduct a natural conversation to collect specific information from the user to assess their eligibility for university counseling.
+    
+    CURRENT CAPTURED DATA:
+    ${JSON.stringify(existingData, null, 2)}
+    
+    REQUIRED FIELDS DEFINITIONS:
+    ${JSON.stringify(FIELD_DEFINITIONS, null, 2)}
+    
+    INSTRUCTIONS:
+    1. **Analyze** the "CURRENT CAPTURED DATA". Identify which fields are null or empty.
+    2. **Context Matters**: 
+       - If 'form_filler_type' is 'Student', do NOT ask for 'parent_name'. Mark 'parent_name' as 'N/A' internally or just skip it.
+       - If the user provides an answer like "12", look at what you just asked. If you asked for Grade, interpret it as "Grade 12".
+    3. **Next Step**: Ask for the *next* missing logical piece of information. Do not ask for everything at once. Ask one question at a time.
+    4. **Tone**: Empathetic, professional, encouraging.
+    5. **Correction**: If the user says "actually I am in Grade 11", update the 'current_grade' field in your output.
+    
+    CRITICAL OUTPUT RULE:
+    You must return a JSON object ONLY. No markdown.
+    Format:
+    {
+      "ai_message": "Your conversational response to the user here.",
+      "updated_data": { "field_name": "extracted_value" }, 
+      "is_complete": boolean
+    }
+    
+    "updated_data" should ONLY contain fields that were newly extracted or corrected in this specific turn.
+    "is_complete" is true ONLY when all necessary fields for the specific user type are filled.
+  `;
+};
 
-// --------------- JSON EXTRACTOR (fixes invalid JSON) -----------------
-function extractJSON(text) {
+app.post("/chat", async (req, res) => {
   try {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON found");
-    return JSON.parse(match[0]);
-  } catch (err) {
-    console.log("JSON Parse Error:", err);
-    return {
-      ai_message: "I'm sorry, could you repeat that?",
-      extracted_data: {},
-      is_complete: false
-    };
-  }
-}
+    // 1. Get Payload from Typebot
+    // 'history' is optional but helps with context if Typebot sends it. 
+    // 'existing_data' is the current variables Typebot has collected.
+    const { user_message, existing_data } = req.body;
 
-// ---------------- AI ENDPOINT ----------------
-app.post("/ask", async (req, res) => {
-  const { user_message, fields, existing_data, start } = req.body;
-
-  // Determine missing fields
-  const missingFields = fields
-    .filter(f => !existing_data || !existing_data[f.name])
-    .map(f => f.name);
-
-  const firstMissing = missingFields[0] || null;
-
-  // Build full prompt
-  const full_prompt = `
-${SYSTEM_PROMPT}
-
-FIELDS TO EXTRACT:
-${fields.map(f => `${f.name} (${f.datatype}): ${f.description}`).join("\n")}
-
-CURRENT EXTRACTED DATA:
-${JSON.stringify(existing_data, null, 2)}
-
-MISSING FIELDS: ${missingFields.join(", ")}
-
-FIRST MISSING FIELD TO ASK ABOUT: ${firstMissing}
-
-STARTING CONVERSATION? ${start}
-
-USER MESSAGE:
-"${user_message}"
-
-Remember: Return ONLY valid JSON. Ask ONLY about the first missing field.
-`;
-
-  try {
+    // 2. Sanitize Existing Data (ensure specific keys exist)
+    const currentVariables = existing_data || {};
+    
+    // 3. Construct Prompt
+    const systemPrompt = generateSystemPrompt(currentVariables);
+    
+    // 4. Call Gemini
     const response = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
-        contents: [{ role: "user", parts: [{ text: full_prompt }] }],
+        contents: [
+            { role: "user", parts: [{ text: systemPrompt + `\n\nUSER SAYS: "${user_message}"` }] }
+        ],
         generationConfig: {
           responseMimeType: "application/json"
         }
-      },
-      { params: { key: process.env.GEMINI_API_KEY } }
+      }
     );
 
-    const rawResponse = response.data.candidates[0].content.parts[0].text;
+    const rawText = response.data.candidates[0].content.parts[0].text;
+    
+    // 5. Parse JSON
+    let aiResponse;
+    try {
+      aiResponse = JSON.parse(rawText);
+    } catch (e) {
+      // Fallback if AI hallucinates markdown
+      const match = rawText.match(/\{[\s\S]*\}/);
+      aiResponse = match ? JSON.parse(match[0]) : { ai_message: "Could you please repeat that?", updated_data: {}, is_complete: false };
+    }
 
-    const cleanJSON = extractJSON(rawResponse);
+    // 6. Return to Typebot
+    // Typebot maps the response body to variables.
+    res.json(aiResponse);
 
-    return res.json({ output: cleanJSON });
-
-  } catch (err) {
-    console.log("AI ERROR:", err.response?.data || err);
-    return res.status(500).json({ error: "AI Request Failed" });
+  } catch (error) {
+    console.error("Server Error:", error.response?.data || error.message);
+    res.status(500).json({ ai_message: "I'm having trouble connecting. Please try again." });
   }
 });
 
-// ---------------- START SERVER ----------------
-app.listen(8080, () => {
-  console.log("Server running on http://localhost:8080");
-});
+app.listen(8080, () => console.log("AI Backend running on port 8080"));
