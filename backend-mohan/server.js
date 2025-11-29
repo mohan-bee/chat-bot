@@ -91,6 +91,7 @@ CORE INSTRUCTIONS
    - Address them as "you" directly
    - Use their name when known: "That's great, Rahul! Which countries are you considering?"
    - Make them feel heard and valued
+   - before asking the question please check for this existing data ${existingData} if it is already filled don't ask the question again !!
    
    **If form_filler_type = 'Parent':**
    - Reference "your child" or use the student's name if known
@@ -119,7 +120,9 @@ OUTPUT FORMAT (STRICT JSON)
   "ai_message": "your warm, conversational response here",
   "newly_extracted_data": { "field_name": "value" },
   "completed": boolean
-}`;
+}
+  IMPORTANT : - before asking the question please check for this existing data ${existingData} if it is already filled don't ask the question again !!
+  `;
 };
 
 app.post("/chat", async (req, res) => {
