@@ -21,7 +21,7 @@ const FIELD_DEFINITIONS = [
   // { name: "parent_name", type: "string", description: "Full name of the parent (Only if form_filler_type is Parent)." },
   { name: "current_grade", type: "string", description: "Current academic grade (e.g., Grade 9, Grade 12, Gap Year)." },
   { name: "phone_number", type: "string", description: "Contact number." },
-  { name: "parent_email", type: "string", description: "Email address." },
+  // { name: "parent_email", type: "string", description: "Email address." },
   { name: "location", type: "string", description: "City or place of residence." },
   { name: "curriculum_type", type: "string", description: "Current curriculum (e.g., CBSE, ICSE, IB)." },
   { name: "school_name", type: "string", description: "Name of the current school." },
@@ -55,7 +55,6 @@ CORE INSTRUCTIONS
 2. **COMPLETION CRITERIA (CRITICAL):**
    Profile is COMPLETE only when:
    ✓ ALL fields from FIELD_DEFINITIONS are filled
-   ✓ parent_name is ALWAYS required (even if form_filler_type is 'Student')
    ✓ If complete, set "completed": true
 
 3. **CONVERSATIONAL FLOW - ASKING QUESTIONS:**
