@@ -32,63 +32,42 @@ const FIELD_DEFINITIONS = [
 // ---------------- AI LOGIC ----------------
 
 const generateSystemPrompt = (existingData, lastAiMessage) => {
-  return `
-    ### SYSTEM ROLE
-You are 'Vishy', an expert Senior Admissions Counselor. You are warm, sharp, and concise.
+  return `You are Vishy, a friendly Senior Admissions Counselor. Keep responses SHORT (1-2 sentences max).
 
-### GOAL
-Collect the 'REQUIRED_FIELDS' from the user to build their profile.
-
-### INPUT CONTEXT
-LAST QUESTION: "${lastAiMessage}"
+LAST QUESTION: "${lastAiMessage || 'Start'}"
 CURRENT DATA: ${JSON.stringify(existingData)}
-DEFINITIONS: ${JSON.stringify(FIELD_DEFINITIONS)}
-USER SAYS: "${userMessage}"
+REQUIRED FIELDS: ${JSON.stringify(FIELD_DEFINITIONS)}
 
-### INSTRUCTIONS
+RULES:
+1. Extract info from user's message. Infer when obvious (e.g., "London" → UK).
+2. Update fields if user corrects previous answers.
+3. COMPLETE when: all fields filled + parent_name exists (even if Student is chatting).
+4. Ask for ONE missing field at a time, following order in FIELD_DEFINITIONS.
+5. VOICE:
+   - If form_filler_type='Student': Address as "you" + use student_name if known
+   - If form_filler_type='Parent': Say "your child" or use student_name
+   - For parent_name when Student chatting: "Could you share your parent's full name for our records?"
+6. TONE: Brief acknowledgment (3-5 words) + question. Example: "Great! Which grade are you in?"
 
-1. **INTELLIGENT EXTRACTION (The Brain):**
-   - Scan 'USER_SAYS' for any entities matching 'DEFINITIONS'.
-   - *Inference Rule:* If user says 'I am in 10th', infer 'current_grade': '10'. If user says 'My son is...', infer 'form_filler_type': 'Parent'.
-   - *Correction Rule:* If new data contradicts old data, overwrite it with the new input.
-
-2. **LOGIC FLOW (The Strategy):**
-   - Look at 'CURRENT DATA'. Find the **first** missing field that is logical to ask next.
-   - **Priority Order:** 'form_filler_type' -> 'student_name' -> 'current_grade' -> 'target_course' -> 'parent_details' (if applicable).
-   - If 'form_filler_type' is 'Student', you MUST eventually ask for 'parent_name' and 'parent_phone' for administrative records, but do it gently at the end.
-
-3. **RESPONSE GENERATION (The Voice):**
-   - **Rule 1 (Brevity):** Your question must be UNDER 15 words.
-   - **Rule 2 (The Hook):** Start with a tiny acknowledgment of their previous answer (max 3 words), then immediately ask the next question.
-   - **Rule 3 (No Fluff):** Do not say 'Thank you for that information' or 'I understand.' Just move forward.
-   - **Rule 4 (One by One):** NEVER ask two questions at once.
-
-### OUTPUT FORMAT (JSON ONLY)
+OUTPUT (JSON only):
 {
-  "ai_message": "Warm, ultra-short question here.",
+  "ai_message": "short response here",
   "newly_extracted_data": { "field": "value" },
   "completed": boolean
-}
-  `;
+}`;
 };
 
 app.post("/chat", async (req, res) => {
   try {
-    // 1. Get Payload
-    // Expected structure: { user_message: "", ai_message: "", existing_data: { ... } }
     const { user_message, ai_message, existing_data } = req.body;
-
-    // Ensure existing_data is an object, even if empty
     const currentDataState = existing_data || {};
 
     console.log("--- INCOMING ---");
     console.log("User:", user_message);
     console.log("Previous AI Context:", ai_message);
 
-    // 2. Construct Prompt
     const systemPrompt = generateSystemPrompt(currentDataState, ai_message);
 
-    // 3. Call Gemini
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
@@ -101,7 +80,6 @@ app.post("/chat", async (req, res) => {
 
     const rawText = response.data.candidates[0].content.parts[0].text;
     
-    // 4. Parse AI Response
     let aiResponse;
     try {
       aiResponse = JSON.parse(rawText);
@@ -110,17 +88,14 @@ app.post("/chat", async (req, res) => {
       aiResponse = { ai_message: "Could you repeat that?", newly_extracted_data: {}, completed: false };
     }
 
-    // ---------------- MERGING LOGIC ----------------
-    // We take the OLD data and overlay the NEW data from AI
     const fullUpdatedData = {
         ...currentDataState,
         ...aiResponse.newly_extracted_data
     };
 
-    // 5. Construct Final Response
     const finalResponse = {
         ai_message: aiResponse.ai_message,
-        existing_data: fullUpdatedData, // Returns the FULL object
+        existing_data: fullUpdatedData,
         completed: aiResponse.completed
     };
 
