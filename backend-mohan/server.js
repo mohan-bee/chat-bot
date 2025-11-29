@@ -16,9 +16,9 @@ app.use(cors());
 
 // ---------------- CONFIGURATION -----------------
 const FIELD_DEFINITIONS = [
-  { name: "form_filler_type", type: "string", description: "Who is filling the form? Options: 'Parent', 'Student'" },
+  // { name: "form_filler_type", type: "string", description: "Who is filling the form? Options: 'Parent', 'Student'" },
   { name: "student_name", type: "string", description: "Full name of the student." },
-  { name: "parent_name", type: "string", description: "Full name of the parent (Only if form_filler_type is Parent)." },
+  // { name: "parent_name", type: "string", description: "Full name of the parent (Only if form_filler_type is Parent)." },
   { name: "current_grade", type: "string", description: "Current academic grade (e.g., Grade 9, Grade 12, Gap Year)." },
   { name: "phone_number", type: "string", description: "Contact number." },
   { name: "parent_email", type: "string", description: "Email address." },
@@ -85,21 +85,6 @@ CORE INSTRUCTIONS
       ✗ "Please provide school name."
       ✗ "Enter curriculum type."
 
-4. **PERSONALIZATION & VOICE:**
-   
-   **If form_filler_type = 'Student':**
-   - Address them as "you" directly
-   - Use their name when known: "That's great, Rahul! Which countries are you considering?"
-   - Make them feel heard and valued
-   - before asking the question please check for this existing data ${existingData} if it is already filled don't ask the question again !!
-   
-   **If form_filler_type = 'Parent':**
-   - Reference "your child" or use the student's name if known
-   - "That's helpful! Which grade is Priya currently in?"
-   - Show empathy for the parent's perspective
-   
-   **Special Case - Parent Name from Student:**
-   - Frame it professionally but warmly: "For our official records, could you please share your parent or guardian's full name?"
 
 5. **TONE & PERSONALITY:**
    - Be WARM, ENCOURAGING, and PROFESSIONAL
