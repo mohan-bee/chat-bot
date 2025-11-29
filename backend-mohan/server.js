@@ -16,188 +16,164 @@ app.use(cors());
 
 // ---------------- CONFIGURATION -----------------
 const FIELD_DEFINITIONS = [
-  { name: "form_filler_type", type: "string", description: "Who is filling the form? (Parent/Student). Infer from context like 'I am a dad' or 'I am looking for college'." },
+  { name: "form_filler_type", type: "string", description: "Who is filling the form? Options: 'Parent', 'Student'" },
   { name: "student_name", type: "string", description: "Full name of the student." },
-  { name: "current_grade", type: "string", description: "Current academic grade (e.g., Grade 9, 12, Gap Year)." },
+  { name: "parent_name", type: "string", description: "Full name of the parent (Only if form_filler_type is Parent)." },
+  { name: "current_grade", type: "string", description: "Current academic grade (e.g., Grade 9, Grade 12, Gap Year)." },
   { name: "phone_number", type: "string", description: "Contact number." },
   { name: "parent_email", type: "string", description: "Email address." },
   { name: "location", type: "string", description: "City or place of residence." },
-  { name: "curriculum_type", type: "string", description: "Current curriculum (CBSE, ICSE, IB, State Board, etc)." },
+  { name: "curriculum_type", type: "string", description: "Current curriculum (e.g., CBSE, ICSE, IB)." },
   { name: "school_name", type: "string", description: "Name of the current school." },
-  { name: "target_geographies", type: "string", description: "Preferred countries for study (USA, UK, Canada, etc)." },
-  { name: "scholarship_requirement", type: "string", description: "Scholarship needs (Full, Partial, None)." },
-  { name: "parent_name", type: "string", description: "Full name of the parent (Only if filler is Student)." }, 
+  { name: "target_geographies", type: "string", description: "Preferred countries for study (e.g., USA, UK)." },
+  { name: "scholarship_requirement", type: "string", description: "Scholarship needs. Options: 'Full', 'Partial', 'None'." }
 ];
 
-// ---------------- HELPER LOGIC ----------------
+// ---------------- AI LOGIC ----------------
 
-// 1. Logic to find the primary target (What we need next)
-const getNextMissingField = (existingData) => {
-  for (const field of FIELD_DEFINITIONS) {
-    // Logic: Skip parent_name if we know for sure the user is the Parent
-    if (field.name === "parent_name") {
-      if (existingData.form_filler_type && existingData.form_filler_type.toLowerCase() === "student") {
-        // Keep it; if student is filling, we need parent name.
-      } else if (existingData.form_filler_type && existingData.form_filler_type.toLowerCase() === "parent") {
-        // Skip it; if parent is filling, we usually assume the contact name is the parent.
-        continue; 
-      }
-    }
+const generateSystemPrompt = (existingData, lastAiMessage) => {
+  return `You are Vishy, a warm and empathetic Senior Admissions Counselor. Your goal is to have a NATURAL, CONVERSATIONAL dialogue that gathers information without feeling like a form.
 
-    // Check if data is missing
-    if (!existingData[field.name] || existingData[field.name].trim() === "") {
-      return field;
-    }
-  }
-  return null; 
-};
+═══════════════════════════════════════════════════════════════════
+CONVERSATION CONTEXT
+═══════════════════════════════════════════════════════════════════
+LAST QUESTION YOU ASKED: "${lastAiMessage || 'Conversation Start'}"
+CURRENT CAPTURED DATA: ${JSON.stringify(existingData, null, 2)}
+REQUIRED FIELDS: ${JSON.stringify(FIELD_DEFINITIONS, null, 2)}
 
-// 2. Normalize to ensure client always gets consistent object keys
-const normalizeDataStructure = (data) => {
-  const completeData = {};
-  FIELD_DEFINITIONS.forEach(field => {
-    completeData[field.name] = data[field.name] !== undefined ? data[field.name] : "";
-  });
-  return completeData;
-};
+═══════════════════════════════════════════════════════════════════
+CORE INSTRUCTIONS
+═══════════════════════════════════════════════════════════════════
 
-// ---------------- AI PROMPT GENERATION ----------------
+1. **INFORMATION EXTRACTION & INTELLIGENCE:**
+   - Carefully analyze the user's message for ANY information matching the required fields
+   - Use SMART INFERENCE: If user says "I want to study in Boston" → extract target_geographies: "USA"
+   - If user says "I'm in 11th standard" → extract current_grade: "Grade 11"
+   - OVERWRITE previous data if the user corrects or updates information
+   - Extract multiple fields at once if the user provides multiple pieces of information
 
-const generateSystemPrompt = (existingData, nextField) => {
-  
-  // Create a status report of what we have vs what we need
-  const fieldStatusList = FIELD_DEFINITIONS.map(field => {
-    const val = existingData[field.name] || ""; 
-    const status = val ? `[FILLED: "${val}"]` : `[MISSING]`;
-    return `- ${field.name} (${field.description}): ${status}`;
-  }).join("\n");
+2. **COMPLETION CRITERIA (CRITICAL):**
+   Profile is COMPLETE only when:
+   ✓ ALL fields from FIELD_DEFINITIONS are filled
+   ✓ parent_name is ALWAYS required (even if form_filler_type is 'Student')
+   ✓ If complete, set "completed": true
 
-  const targetInstruction = nextField 
-    ? `PRIMARY GOAL: Politely ask for "${nextField.name}".` 
-    : "PRIMARY GOAL: All data is collected. Thank the user and confirm registration.";
+3. **CONVERSATIONAL FLOW - ASKING QUESTIONS:**
+   
+   **PRIORITY ORDER:**
+   - ALWAYS establish form_filler_type FIRST (are you the parent or student?)
+   - Then get student_name
+   - Then follow the order in FIELD_DEFINITIONS for remaining fields
+   
+   **ASK ONE QUESTION AT A TIME** - Never ask multiple questions in one message
+   
+   **QUESTION STYLE - Make it feel like a conversation, NOT a form:**
+   
+   A) **ACKNOWLEDGE + TRANSITION + QUESTION** format:
+      - Start with a warm, specific acknowledgment of their previous answer (5-10 words)
+      - Add a natural transition that shows you're interested
+      - Then ask the next question in a conversational way
+      
+   B) **EXAMPLES OF GOOD CONVERSATIONAL QUESTIONS:**
+      ✓ "That's wonderful! I can see you're aiming high. Which grade are you currently in?"
+      ✓ "Boston is an excellent choice for academics! To help you better, what curriculum are you following right now—CBSE, ICSE, or IB?"
+      ✓ "Got it, thank you! And which school are you attending?"
+      ✓ "Perfect! One last thing—could you share your parent or guardian's full name for our official records?"
+      
+   C) **AVOID ROBOTIC PHRASING:**
+      ✗ "What is your grade?"
+      ✗ "Please provide school name."
+      ✗ "Enter curriculum type."
 
-  return `
-  ROLE: You are Vishy, a warm, smart Senior Admissions Counselor.
-  
-  --- DATA SCHEMA & STATUS ---
-${fieldStatusList}
-  ----------------------------
+4. **PERSONALIZATION & VOICE:**
+   
+   **If form_filler_type = 'Student':**
+   - Address them as "you" directly
+   - Use their name when known: "That's great, Rahul! Which countries are you considering?"
+   - Make them feel heard and valued
+   
+   **If form_filler_type = 'Parent':**
+   - Reference "your child" or use the student's name if known
+   - "That's helpful! Which grade is Priya currently in?"
+   - Show empathy for the parent's perspective
+   
+   **Special Case - Parent Name from Student:**
+   - Frame it professionally but warmly: "For our official records, could you please share your parent or guardian's full name?"
 
-  ${targetInstruction}
+5. **TONE & PERSONALITY:**
+   - Be WARM, ENCOURAGING, and PROFESSIONAL
+   - Show genuine interest in their goals
+   - Use positive reinforcement: "Excellent choice!", "That's fantastic!", "I can see you're well-prepared!"
+   - Keep it conversational but focused—you're a counselor, not just a chatbot
+   - Each response should feel like a real human counselor is guiding them
 
-  **CRITICAL RULES FOR EXTRACTION (DO NOT IGNORE):**
-  1. **SCAN EVERYTHING**: The user might provide multiple fields in one sentence (e.g., "I'm John from Delhi" -> extract 'student_name' AND 'location'). 
-  2. **CHECK HISTORY**: Look at the conversation history. If the user mentioned a detail 3 turns ago that is marked [MISSING] above, EXTRACT IT NOW.
-  3. **NO REPEATS**: Do NOT ask for a field marked [FILLED] above. If the user just gave it, acknowledge it and move on.
-  4. **INFERENCE**: 
-     - If user says "My son needs admission", set 'form_filler_type' = 'Parent'.
-     - If user says "I want to study in London", set 'target_geographies' = 'UK'.
+6. **RESPONSE LENGTH:**
+   - Aim for 2-3 sentences (15-35 words total)
+   - Acknowledgment + Question format
+   - Not too short (robotic) or too long (overwhelming)
 
-  **RESPONSE GUIDELINES**:
-  1. Update 'newly_extracted_data' with ANY field found in the user's message or history that is currently [MISSING].
-  2. Construct 'ai_message' to acknowledge what was received and ask the PRIMARY GOAL question naturally.
-  3. Keep the tone conversational, short, and encouraging.
-
-  OUTPUT FORMAT (JSON ONLY):
-  {
-    "ai_message": "String response to user",
-    "newly_extracted_data": { "field_name": "value", "another_field": "value" },
-    "completed": boolean
-  }
-  `;
+═══════════════════════════════════════════════════════════════════
+OUTPUT FORMAT (STRICT JSON)
+═══════════════════════════════════════════════════════════════════
+{
+  "ai_message": "your warm, conversational response here",
+  "newly_extracted_data": { "field_name": "value" },
+  "completed": boolean
+}`;
 };
 
 app.post("/chat", async (req, res) => {
   try {
-    let { user_message, conversation_history, existing_data } = req.body;
-    
-    conversation_history = conversation_history || [];
-    // Ensure existing_data is normalized (no undefined fields)
-    let currentDataState = normalizeDataStructure(existing_data || {});
+    const { user_message, ai_message, existing_data } = req.body;
+    const currentDataState = existing_data || {};
 
-    console.log(`\n--- TURN START ---`);
-    console.log(`User: "${user_message}"`);
+    console.log("--- INCOMING ---");
+    console.log("User:", user_message);
+    console.log("Previous AI Context:", ai_message);
 
-    // 1. Calculate the Target Field based on current DB state
-    const nextField = getNextMissingField(currentDataState);
-    
-    // 2. Generate Prompt
-    const systemInstructionText = generateSystemPrompt(currentDataState, nextField);
-
-    // 3. Call Gemini
-    const geminiPayload = {
-      system_instruction: { parts: [{ text: systemInstructionText }] },
-      contents: [
-        ...conversation_history, 
-        { role: "user", parts: [{ text: user_message }] }
-      ],
-      generationConfig: { 
-        responseMimeType: "application/json",
-        temperature: 0.2 // Lower temperature for more precise data extraction
-      }
-    };
+    const systemPrompt = generateSystemPrompt(currentDataState, ai_message);
 
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      geminiPayload
+      {
+        contents: [
+          { role: "user", parts: [{ text: systemPrompt + `\n\nUSER SAYS: "${user_message}"` }] }
+        ],
+        generationConfig: { responseMimeType: "application/json" }
+      }
     );
 
     const rawText = response.data.candidates[0].content.parts[0].text;
-    let aiResponse;
     
+    let aiResponse;
     try {
       aiResponse = JSON.parse(rawText);
     } catch (e) {
-      console.error("JSON Parse Error on AI response", rawText);
-      // Fallback
-      aiResponse = { 
-        ai_message: "I didn't quite catch that details. Could you repeat?", 
-        newly_extracted_data: {}, 
-        completed: false 
-      };
+      console.error("JSON Parse Error", e);
+      aiResponse = { ai_message: "Could you repeat that?", newly_extracted_data: {}, completed: false };
     }
 
-    // 4. MERGE DATA
-    // We merge the old data with the newly extracted data
-    // This allows the AI to fill 3 fields at once if the user provided them
-    let fullUpdatedData = { ...currentDataState, ...aiResponse.newly_extracted_data };
-    
-    // 5. RE-EVALUATE COMPLETION AFTER EXTRACTION
-    // We check if we are *actually* done after this update
-    const nextMissingAfterUpdate = getNextMissingField(fullUpdatedData);
-    const isActuallyComplete = !nextMissingAfterUpdate;
-
-    // Override AI's completion flag if logic says we aren't done
-    const finalCompletionStatus = isActuallyComplete; 
-
-    // 6. Update History (Client needs this for next turn)
-    const newHistory = [
-        ...conversation_history,
-        { role: "user", parts: [{ text: user_message }] },
-        { role: "model", parts: [{ text: aiResponse.ai_message }] }
-    ];
+    const fullUpdatedData = {
+        ...currentDataState,
+        ...aiResponse.newly_extracted_data
+    };
 
     const finalResponse = {
         ai_message: aiResponse.ai_message,
-        existing_data: fullUpdatedData, // Send back the merged data
-        completed: finalCompletionStatus,
-        conversation_history: newHistory,
-        meta_info: {
-            extracted_this_turn: aiResponse.newly_extracted_data,
-            next_target: nextMissingAfterUpdate ? nextMissingAfterUpdate.name : "COMPLETE"
-        }
+        existing_data: fullUpdatedData,
+        completed: aiResponse.completed
     };
 
-    console.log(`Extracted:`, Object.keys(aiResponse.newly_extracted_data));
-    console.log(`AI Reply: "${aiResponse.ai_message}"`);
-    console.log(`Next Target: ${finalResponse.meta_info.next_target}`);
-    console.log(`--- TURN END ---\n`);
+    console.log("--- OUTGOING ---");
+    console.log("AI Message:", finalResponse.ai_message);
+    console.log("Full Data State:", JSON.stringify(finalResponse.existing_data));
+    console.log("----------------\n");
 
     res.json(finalResponse);
 
   } catch (error) {
     console.error("Server Error:", error.response?.data || error.message);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ ai_message: "Connection error.", existing_data: req.body.existing_data, completed: false });
   }
 });
 
